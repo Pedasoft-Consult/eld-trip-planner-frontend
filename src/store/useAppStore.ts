@@ -73,6 +73,14 @@ export const useAppStore = create<AppState>()(
         try {
           set({ isLoading: true, error: null })
 
+          // Check if MapBox token is available
+          const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN ||
+                             process.env.VITE_MAPBOX_TOKEN
+
+          if (!mapboxToken) {
+            console.warn('MapBox token not found. Map functionality may be limited.')
+          }
+
           // Simulate API calls for initialization
           await new Promise(resolve => setTimeout(resolve, 1000))
 
@@ -81,6 +89,13 @@ export const useAppStore = create<AppState>()(
           if (theme === 'dark') {
             document.documentElement.classList.add('dark')
           }
+
+          // Add welcome notification
+          get().addNotification({
+            type: 'success',
+            title: 'Welcome to ELD Trip Planner',
+            message: 'System initialized successfully. Ready for trip planning.'
+          })
 
           set({ isInitialized: true, isLoading: false })
         } catch (error) {
@@ -106,7 +121,7 @@ export const useAppStore = create<AppState>()(
           read: false,
         }
         set((state) => ({
-          notifications: [newNotification, ...state.notifications]
+          notifications: [newNotification, ...state.notifications.slice(0, 49)] // Keep max 50 notifications
         }))
       },
       removeNotification: (id) => set((state) => ({

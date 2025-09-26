@@ -11,8 +11,8 @@ import {
 } from '@heroicons/react/24/outline'
 import { motion } from 'framer-motion'
 
-// Store
-import { useAppStore, useNotifications, useAppTheme } from '@store/useAppStore'
+// Store - Fixed import path
+import { useNotifications, useAppTheme, useAppStore } from '../../store/useAppStore'
 
 // Components
 import NotificationDropdown from '../ui/NotificationDropdown'
@@ -39,14 +39,14 @@ const Header: React.FC = () => {
             {/* Mobile menu button */}
             <button
               type="button"
-              className="lg:hidden -ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary-500"
+              className="lg:hidden -ml-0.5 -mt-0.5 h-12 w-12 inline-flex items-center justify-center rounded-md text-gray-500 hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-red-500"
               onClick={toggleSidebar}
             >
               <span className="sr-only">Open sidebar</span>
               <Bars3Icon className="h-6 w-6" aria-hidden="true" />
             </button>
 
-            {/* Page title - will be updated based on current route */}
+            {/* Page title */}
             <div className="ml-4 lg:ml-0">
               <h1 className="text-2xl font-semibold text-gray-900">
                 ELD Trip Planner
@@ -63,7 +63,7 @@ const Header: React.FC = () => {
             <button
               type="button"
               onClick={toggleTheme}
-              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors"
+              className="p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
               title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
             >
               {theme === 'light' ? (
@@ -79,9 +79,9 @@ const Header: React.FC = () => {
                 type="button"
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={clsx(
-                  'p-2 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500',
+                  'p-2 rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500',
                   showNotifications
-                    ? 'text-primary-600 bg-primary-50'
+                    ? 'text-red-600 bg-red-50'
                     : 'text-gray-400 hover:text-gray-500 hover:bg-gray-100'
                 )}
                 title={`${unreadCount} unread notifications`}
@@ -107,7 +107,7 @@ const Header: React.FC = () => {
 
             {/* Settings dropdown */}
             <Menu as="div" className="relative">
-              <Menu.Button className="flex text-sm rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 p-2 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-colors">
+              <Menu.Button className="flex text-sm rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 p-2 focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors">
                 <span className="sr-only">Open settings menu</span>
                 <Cog6ToothIcon className="h-5 w-5" />
               </Menu.Button>
@@ -174,10 +174,10 @@ const Header: React.FC = () => {
 
             {/* User menu */}
             <Menu as="div" className="relative">
-              <Menu.Button className="flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-primary-500">
+              <Menu.Button className="flex text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-red-500">
                 <span className="sr-only">Open user menu</span>
-                <div className="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
-                  <UserCircleIcon className="h-6 w-6 text-primary-600" />
+                <div className="h-8 w-8 rounded-full bg-red-100 flex items-center justify-center">
+                  <UserCircleIcon className="h-6 w-6 text-red-600" />
                 </div>
               </Menu.Button>
 
