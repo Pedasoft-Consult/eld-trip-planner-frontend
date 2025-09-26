@@ -1,202 +1,256 @@
-import React, { useEffect, useState } from 'react'
-import { useQuery } from 'react-query'
-import { Link } from 'react-router-dom'
+import React, { useState } from 'react'
+import { useMutation, useQuery } from 'react-query'
+import { useNavigate } from 'react-router-dom'
+import { useForm } from 'react-hook-form'
 import { motion } from 'framer-motion'
+import toast from 'react-hot-toast'
 import {
-  TruckIcon,
-  UserGroupIcon,
+  MapIcon,
   ClockIcon,
+  TruckIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  MapIcon,
-  ChartBarIcon,
+  ArrowRightIcon,
+  ArrowLeftIcon,
+  UserIcon,
 } from '@heroicons/react/24/outline'
 
 // API Services
-import { dashboardService, driverService } from '@/api/services'
+import { tripService, driverService, vehicleService, eldService } from '@/api/services'
 
 // Components
-import { LoadingSpinner, Card, StatsCard, Button, ErrorMessage } from '@/components/ui'
-import { useAppStore } from '@store/useAppStore'
+import {
+  Card,
+  Button,
+  LoadingSpinner,
+  Input,
+  Select,
+  ErrorMessage,
+  LoadingButton,
+} from '@/components/ui'
 
 // Types
-import type { DashboardStats } from '@/types'
+import type { TripCreateRequest, Driver, Vehicle, HOSStatus } from '@/types'
 
-const Dashboard: React.FC = () => {
-  const { addNotification } = useAppStore()
+interface TripFormData {
+  currentLocation: string
+  pickupLocation: string
+  dropoffLocation: string
+  currentCycleHours: number
+  currentDailyDriveHours: number
+  currentDailyDutyHours: number
+  driverId?: number
+  vehicleId?: number
+  notes?: string
+}
 
-  // Fetch dashboard data
+const TripPlanner: React.FC = () => {
+  const navigate = useNavigate()
+  const [currentStep, setCurrentStep] = useState(1)
+  const [hosStatus, setHosStatus] = useState<HOSStatus | null>(null)
+
   const {
-    data: dashboardData,
-    isLoading: isDashboardLoading,
-    error: dashboardError,
-    refetch: refetchDashboard,
-  } = useQuery(
-    'dashboard-stats',
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isValid },
+    trigger,
+  } = useForm<TripFormData>({
+    mode: 'onChange',
+    defaultValues: {
+      currentCycleHours: 0,
+      currentDailyDriveHours: 0,
+      currentDailyDutyHours: 0,
+    },
+  })
+
+  const watchedValues = watch()
+
+  // Fetch drivers and vehicles
+  const { data: drivers = [] } = useQuery(
+    'active-drivers',
     async () => {
-      const response = await dashboardService.getFleetDashboard()
-      if (response.error) {
-        throw new Error(response.error)
-      }
+      const response = await driverService.getDrivers({ is_active: true })
+      return response.data || []
+    }
+  )
+
+  const { data: vehicles = [] } = useQuery(
+    'active-vehicles',
+    async () => {
+      const response = await vehicleService.getVehicles({ is_active: true })
+      return response.data || []
+    }
+  )
+
+  // HOS Compliance Check
+  const { mutate: checkHOSCompliance, isLoading: isCheckingHOS } = useMutation(
+    async (data: { current_cycle_hours: number; daily_drive_hours: number; daily_duty_hours: number }) => {
+      const response = await eldService.checkCompliance(data)
+      if (response.error) throw new Error(response.error)
       return response.data
     },
     {
-      refetchInterval: 30000, // Refresh every 30 seconds
+      onSuccess: (data) => {
+        setHosStatus(data)
+      },
       onError: (error) => {
-        console.error('Dashboard data fetch failed:', error)
+        toast.error(`HOS check failed: ${error}`)
       },
     }
   )
 
-  // Fetch driver stats
-  const {
-    data: driverStats,
-    isLoading: isDriverStatsLoading,
-  } = useQuery(
-    'driver-dashboard-stats',
-    async () => {
-      const response = await driverService.getDashboardStats()
-      if (response.error) {
-        throw new Error(response.error)
-      }
+  // Create Trip
+  const { mutate: createTrip, isLoading: isCreatingTrip } = useMutation(
+    async (tripData: TripCreateRequest) => {
+      const response = await tripService.createTrip(tripData)
+      if (response.error) throw new Error(response.error)
       return response.data
     },
     {
-      refetchInterval: 30000,
+      onSuccess: (data) => {
+        toast.success('Trip created successfully!')
+        navigate(`/trips/${data.id}`)
+      },
+      onError: (error) => {
+        toast.error(`Failed to create trip: ${error}`)
+      },
     }
   )
 
-  // Show welcome notification on first load
-  useEffect(() => {
-    const hasSeenWelcome = localStorage.getItem('dashboard-welcome-seen')
-    if (!hasSeenWelcome && dashboardData) {
-      setTimeout(() => {
-        addNotification({
-          type: 'info',
-          title: 'Dashboard Loaded',
-          message: 'Welcome to your ELD Trip Planner dashboard. All systems operational.',
+  const handleStepNext = async () => {
+    const isStepValid = await trigger()
+    if (isStepValid) {
+      if (currentStep === 2) {
+        // Check HOS compliance before proceeding
+        checkHOSCompliance({
+          current_cycle_hours: watchedValues.currentCycleHours,
+          daily_drive_hours: watchedValues.currentDailyDriveHours,
+          daily_duty_hours: watchedValues.currentDailyDutyHours,
         })
-        localStorage.setItem('dashboard-welcome-seen', 'true')
-      }, 1000)
+      }
+      setCurrentStep((prev) => Math.min(prev + 1, 4))
     }
-  }, [dashboardData, addNotification])
-
-  const isLoading = isDashboardLoading || isDriverStatsLoading
-
-  if (isLoading && !dashboardData) {
-    return (
-      <div className="min-h-96 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner size="lg" />
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
-      </div>
-    )
   }
 
-  if (dashboardError) {
-    return (
-      <div className="min-h-96 flex items-center justify-center">
-        <ErrorMessage
-          title="Failed to load dashboard"
-          message="Unable to fetch dashboard data. Please check your connection and try again."
-          action={
-            <Button onClick={() => refetchDashboard()} variant="primary">
-              Retry
-            </Button>
-          }
-        />
-      </div>
-    )
+  const handleStepBack = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 1))
   }
 
-  const stats = dashboardData?.dashboard_data || driverStats
-  const complianceRate = stats?.compliance?.compliance_rate || 0
-  const cycleViolations = stats?.compliance?.cycle_violations || 0
-  const availableDrivers = stats?.availability?.available_drivers || 0
-  const totalDrivers = stats?.totals?.drivers || 0
+  const onSubmit = (data: TripFormData) => {
+    const tripData: TripCreateRequest = {
+      current_location: data.currentLocation,
+      pickup_location: data.pickupLocation,
+      dropoff_location: data.dropoffLocation,
+      current_cycle_hours: data.currentCycleHours,
+      current_daily_drive_hours: data.currentDailyDriveHours,
+      current_daily_duty_hours: data.currentDailyDutyHours,
+      driver_id: data.driverId,
+      vehicle_id: data.vehicleId,
+      notes: data.notes,
+    }
+
+    createTrip(tripData)
+  }
+
+  const isLoading = isCheckingHOS || isCreatingTrip
+
+  const stepTitles = [
+    'Route Information',
+    'Hours of Service',
+    'Driver & Vehicle',
+    'Review & Create'
+  ]
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-4xl mx-auto space-y-6">
       {/* Page Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="mt-2 text-gray-600">
-            Fleet overview and real-time compliance monitoring
-          </p>
-        </div>
+      <div className="text-center">
+        <h1 className="text-3xl font-bold text-gray-900">Trip Planner</h1>
+        <p className="mt-2 text-gray-600">
+          Plan FMCSA compliant routes with automatic ELD log generation
+        </p>
+      </div>
 
-        <div className="flex space-x-3">
-          <Link to="/trip-planner">
-            <Button variant="primary" className="flex items-center">
-              <MapIcon className="h-4 w-4 mr-2" />
-              Plan Trip
-            </Button>
-          </Link>
-          <Link to="/compliance">
-            <Button variant="outline" className="flex items-center">
-              <ChartBarIcon className="h-4 w-4 mr-2" />
-              View Reports
-            </Button>
-          </Link>
+      {/* Progress Indicator */}
+      <div className="flex justify-center">
+        <div className="flex items-center space-x-4">
+          {[1, 2, 3, 4].map((step) => (
+            <div key={step} className="flex items-center">
+              <div
+                className={`
+                  w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium transition-colors
+                  ${currentStep >= step
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-gray-200 text-gray-600'
+                  }
+                `}
+              >
+                {step}
+              </div>
+              <div className="hidden sm:block ml-2 mr-4">
+                <p className={`text-sm font-medium ${currentStep >= step ? 'text-primary-600' : 'text-gray-400'}`}>
+                  {stepTitles[step - 1]}
+                </p>
+              </div>
+              {step < 4 && (
+                <div
+                  className={`
+                    w-16 h-1 mx-2
+                    ${currentStep > step ? 'bg-primary-600' : 'bg-gray-200'}
+                  `}
+                />
+              )}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Key Stats */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6"
-      >
-        <StatsCard
-          title="Total Drivers"
-          value={totalDrivers.toString()}
-          icon={<UserGroupIcon className="h-8 w-8" />}
-          trend={availableDrivers > 0 ? `${availableDrivers} available` : 'No drivers available'}
-          trendColor={availableDrivers > 0 ? 'green' : 'red'}
-        />
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        {/* Step 1: Route Information */}
+        {currentStep === 1 && (
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card title="Route Information" className="space-y-6">
+              <div className="grid grid-cols-1 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Location *
+                  </label>
+                  <Input
+                    {...register('currentLocation', {
+                      required: 'Current location is required'
+                    })}
+                    placeholder="Enter your current location"
+                    error={errors.currentLocation?.message}
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Use full address for accurate routing (e.g., "123 Main St, Chicago, IL 60601")
+                  </p>
+                </div>
 
-        <StatsCard
-          title="Active Vehicles"
-          value={stats?.totals?.vehicles?.toString() || '0'}
-          icon={<TruckIcon className="h-8 w-8" />}
-          trend="Fleet operational"
-          trendColor="blue"
-        />
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Pickup Location *
+                  </label>
+                  <Input
+                    {...register('pickupLocation', {
+                      required: 'Pickup location is required'
+                    })}
+                    placeholder="Enter pickup address"
+                    error={errors.pickupLocation?.message}
+                  />
+                </div>
 
-        <StatsCard
-          title="HOS Compliance"
-          value={`${complianceRate}%`}
-          icon={complianceRate >= 95 ?
-            <CheckCircleIcon className="h-8 w-8" /> :
-            <ExclamationTriangleIcon className="h-8 w-8" />
-          }
-          trend={complianceRate >= 95 ? 'Excellent' : 'Needs attention'}
-          trendColor={complianceRate >= 95 ? 'green' : 'red'}
-        />
-
-        <StatsCard
-          title="Violations"
-          value={cycleViolations.toString()}
-          icon={<ClockIcon className="h-8 w-8" />}
-          trend={cycleViolations === 0 ? 'No violations' : 'Action required'}
-          trendColor={cycleViolations === 0 ? 'green' : 'red'}
-        />
-      </motion.div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Fleet Status */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-          className="lg:col-span-2"
-        >
-          <Card title="Fleet Status" className="h-full">
-            <div className="space-y-4">
-              {/* Driver Status Breakdown */}
-              <div>
-                <h3 className="text-
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Dropoff Location *
+                  </label>
+                  <Input
+                    {...register('dropoffLocation', {
+                      required: '
