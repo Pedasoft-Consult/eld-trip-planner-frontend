@@ -1,9 +1,10 @@
 import React, { Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Toaster } from 'react-hot-toast'
 
 // Store
-import { useAppStore } from '@store/useAppStore'
+import { useAppStore } from '@/store/useAppStore'
 
 // Layouts
 import MainLayout from '@/components/layout/MainLayout'
@@ -11,14 +12,14 @@ import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import ErrorBoundary from '@/components/ui/ErrorBoundary'
 
 // Pages (Lazy loaded for code splitting)
-const Dashboard = React.lazy(() => import('@pages/Dashboard'))
-const TripPlanner = React.lazy(() => import('@pages/TripPlanner'))
-const TripDetails = React.lazy(() => import('@pages/TripDetails'))
-const ELDLogs = React.lazy(() => import('@pages/ELDLogs'))
-const LogDetails = React.lazy(() => import('@pages/LogDetails'))
-const ComplianceReports = React.lazy(() => import('@pages/ComplianceReports'))
-const Settings = React.lazy(() => import('@pages/Settings'))
-const NotFound = React.lazy(() => import('@pages/NotFound'))
+const Dashboard = React.lazy(() => import('@/pages/Dashboard'))
+const TripPlanner = React.lazy(() => import('@/pages/TripPlanner'))
+const TripDetails = React.lazy(() => import('@/pages/TripDetails'))
+const ELDLogs = React.lazy(() => import('@/pages/ELDLogs'))
+const LogDetails = React.lazy(() => import('@/pages/LogDetails'))
+const ComplianceReports = React.lazy(() => import('@/pages/ComplianceReports'))
+const Settings = React.lazy(() => import('@/pages/Settings'))
+const NotFound = React.lazy(() => import('@/pages/NotFound'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -87,7 +88,7 @@ function App() {
           </p>
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
           >
             Reload Application
           </button>
@@ -119,7 +120,7 @@ function App() {
             <Suspense fallback={<PageLoader />}>
               <Routes>
                 {/* Dashboard - Default route */}
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<Navigate to="/trip-planner" replace />} />
                 <Route
                   path="/dashboard"
                   element={
@@ -135,7 +136,7 @@ function App() {
                   }
                 />
 
-                {/* Trip Planning */}
+                {/* Trip Planning - Main feature */}
                 <Route
                   path="/trip-planner"
                   element={
@@ -246,6 +247,30 @@ function App() {
             </Suspense>
           </AnimatePresence>
         </MainLayout>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#363636',
+              color: '#fff',
+            },
+            success: {
+              duration: 3000,
+              theme: {
+                primary: '#22c55e',
+                secondary: '#ffffff',
+              },
+            },
+            error: {
+              duration: 5000,
+              theme: {
+                primary: '#ef4444',
+                secondary: '#ffffff',
+              },
+            },
+          }}
+        />
       </div>
     </ErrorBoundary>
   )

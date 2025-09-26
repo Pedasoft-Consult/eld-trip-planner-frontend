@@ -10,7 +10,7 @@ export interface ApiResponse<T = any> {
 }
 
 // Base API configuration
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api/v1'
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'
 
 class ApiClient {
   private client: AxiosInstance
@@ -39,7 +39,7 @@ class ApiClient {
         }
 
         // Log requests in development
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`, config.data)
         }
 
@@ -55,7 +55,7 @@ class ApiClient {
     this.client.interceptors.response.use(
       (response: AxiosResponse) => {
         // Log responses in development
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log(`API Response: ${response.status}`, response.data)
         }
 
@@ -67,7 +67,7 @@ class ApiClient {
           // Unauthorized - clear auth
           localStorage.removeItem('auth_token')
           // Don't redirect in development to avoid disrupting the demo
-          if (process.env.NODE_ENV === 'production') {
+          if (import.meta.env.PROD) {
             window.location.href = '/login'
           }
         }
