@@ -1,7 +1,19 @@
 // src/store/useAppStore.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Notification } from '@/types'
+
+export interface Notification {
+  id: string
+  type: 'info' | 'success' | 'warning' | 'error'
+  title: string
+  message: string
+  timestamp: Date
+  read: boolean
+  action?: {
+    label: string
+    onClick: () => void
+  }
+}
 
 interface AppState {
   // Theme
