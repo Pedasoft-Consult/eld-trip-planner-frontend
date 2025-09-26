@@ -14,12 +14,95 @@ import ErrorBoundary from '@/components/ui/ErrorBoundary'
 // Pages (Lazy loaded for code splitting)
 const Dashboard = React.lazy(() => import('@/pages/Dashboard'))
 const TripPlanner = React.lazy(() => import('@/pages/TripPlanner'))
-const TripDetails = React.lazy(() => import('@/pages/TripDetails'))
-const ELDLogs = React.lazy(() => import('@/pages/ELDLogs'))
-const LogDetails = React.lazy(() => import('@/pages/LogDetails'))
-const ComplianceReports = React.lazy(() => import('@/pages/ComplianceReports'))
-const Settings = React.lazy(() => import('@/pages/Settings'))
-const NotFound = React.lazy(() => import('@/pages/NotFound'))
+
+// Simple fallback components for missing pages
+const TripDetails = React.lazy(() =>
+  Promise.resolve({
+    default: () => (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-gray-900">Trip Details</h1>
+        <p className="text-gray-600 mt-2">Trip details page content will be implemented here.</p>
+      </div>
+    )
+  })
+)
+
+const ELDLogs = React.lazy(() =>
+  Promise.resolve({
+    default: () => (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-gray-900">ELD Logs</h1>
+        <p className="text-gray-600 mt-2">ELD logs management page content will be implemented here.</p>
+      </div>
+    )
+  })
+)
+
+const LogDetails = React.lazy(() =>
+  Promise.resolve({
+    default: () => (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-gray-900">Log Details</h1>
+        <p className="text-gray-600 mt-2">Individual log details page content will be implemented here.</p>
+      </div>
+    )
+  })
+)
+
+const ComplianceReports = React.lazy(() =>
+  Promise.resolve({
+    default: () => (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-gray-900">Compliance Reports</h1>
+        <p className="text-gray-600 mt-2">Compliance reports and analytics will be implemented here.</p>
+      </div>
+    )
+  })
+)
+
+const Settings = React.lazy(() =>
+  Promise.resolve({
+    default: () => (
+      <div className="p-6">
+        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+        <p className="text-gray-600 mt-2">Application settings and preferences will be implemented here.</p>
+      </div>
+    )
+  })
+)
+
+const NotFound = React.lazy(() =>
+  Promise.resolve({
+    default: () => {
+      const { Link } = require('react-router-dom')
+      const { HomeIcon } = require('@heroicons/react/24/outline')
+
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+          <div className="max-w-md w-full space-y-8 text-center">
+            <div>
+              <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+                404 - Page Not Found
+              </h2>
+              <p className="mt-2 text-sm text-gray-600">
+                The page you're looking for doesn't exist.
+              </p>
+            </div>
+            <div>
+              <Link
+                to="/"
+                className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                <HomeIcon className="h-5 w-5 mr-2" />
+                Back to Home
+              </Link>
+            </div>
+          </div>
+        </div>
+      )
+    }
+  })
+)
 
 // Loading fallback component
 const PageLoader = () => (
