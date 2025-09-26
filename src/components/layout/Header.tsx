@@ -12,10 +12,10 @@ import {
 import { motion } from 'framer-motion'
 
 // Store - Fixed import path
-import { useNotifications, useAppTheme, useAppStore } from '../../store/useAppStore'
+import { useNotifications, useAppTheme, useAppStore } from '@/store/useAppStore'
 
 // Components
-import NotificationDropdown from '../ui/NotificationDropdown'
+import NotificationDropdown from '@/components/ui/NotificationDropdown'
 
 // Utils
 import { clsx } from 'clsx'

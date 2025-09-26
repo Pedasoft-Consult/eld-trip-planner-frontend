@@ -1,11 +1,10 @@
-// src/components/layout/MainLayout.tsx
 import React, { useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { Transition } from '@headlessui/react'
 import Header from './Header'
 import Sidebar from './Sidebar'
 import MobileMenu from './MobileMenu'
-import { useSidebar } from '../../store/useAppStore'
+import { useSidebar } from '@/store/useAppStore'
 import { clsx } from 'clsx'
 
 interface MainLayoutProps {

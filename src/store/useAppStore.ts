@@ -1,4 +1,3 @@
-// src/store/useAppStore.ts
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
@@ -74,8 +73,7 @@ export const useAppStore = create<AppState>()(
           set({ isLoading: true, error: null })
 
           // Check if MapBox token is available
-          const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN ||
-                             process.env.VITE_MAPBOX_TOKEN
+          const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN
 
           if (!mapboxToken) {
             console.warn('MapBox token not found. Map functionality may be limited.')

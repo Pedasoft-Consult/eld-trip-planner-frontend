@@ -10,14 +10,10 @@ import {
   ArrowRightIcon,
   ArrowLeftIcon,
   UserIcon,
-  FuelIcon,
-  Coffee,
-  Bed,
-  Navigation,
-  FileText,
-  Download,
-  Eye
-} from 'lucide-react'
+  DocumentTextIcon,
+  ArrowDownTrayIcon,
+  EyeIcon
+} from '@heroicons/react/24/outline'
 
 // API Services
 import { tripService, driverService, vehicleService, eldService } from '@/api/services'
@@ -642,11 +638,11 @@ const TripPlanner: React.FC = () => {
                 actions={
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4 mr-1" />
+                      <EyeIcon className="h-4 w-4 mr-1" />
                       View
                     </Button>
                     <Button variant="outline" size="sm">
-                      <Download className="h-4 w-4 mr-1" />
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
                       Download
                     </Button>
                   </div>
@@ -669,7 +665,7 @@ const TripPlanner: React.FC = () => {
                     ))
                   ) : (
                     <div className="text-center py-8">
-                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                      <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                       <p className="text-gray-600">ELD logs will be generated automatically</p>
                     </div>
                   )}
@@ -698,11 +694,11 @@ const TripPlanner: React.FC = () => {
                 </Button>
                 <div className="space-x-2">
                   <Button variant="outline">
-                    <Download className="h-4 w-4 mr-1" />
+                    <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
                     Export Trip
                   </Button>
                   <Button variant="primary">
-                    <Navigation className="h-4 w-4 mr-1" />
+                    <MapIcon className="h-4 w-4 mr-1" />
                     Start Trip
                   </Button>
                 </div>
