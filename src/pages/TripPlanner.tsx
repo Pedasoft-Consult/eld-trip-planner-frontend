@@ -40,9 +40,9 @@ interface TripFormData {
 
 interface HOSStatus {
   can_drive: boolean
-  available_drive_hours: number
-  available_duty_hours: number
-  remaining_cycle_hours: number
+  available_drive_hours?: number
+  available_duty_hours?: number
+  remaining_cycle_hours?: number
   needs_restart: boolean
   reason?: string
 }
@@ -89,11 +89,44 @@ const TripPlanner: React.FC = () => {
           vehicleService.getVehicles({ is_active: true })
         ])
 
-        if (driversResponse.data) setDrivers(driversResponse.data)
-        if (vehiclesResponse.data) setVehicles(vehiclesResponse.data)
+        // Handle drivers data - API returns paginated response with 'results' array
+        if (driversResponse.data) {
+          let driversData = []
+          if (Array.isArray(driversResponse.data)) {
+            // Direct array response
+            driversData = driversResponse.data
+          } else if (driversResponse.data && typeof driversResponse.data === 'object' && 'results' in driversResponse.data && Array.isArray((driversResponse.data as any).results)) {
+            // Paginated response with 'results' array
+            driversData = (driversResponse.data as any).results
+          }
+          setDrivers(driversData)
+          console.log('Drivers loaded:', driversData)
+        } else {
+          console.warn('No drivers data received')
+          setDrivers([])
+        }
+
+        // Handle vehicles data - API returns direct array
+        if (vehiclesResponse.data) {
+          let vehiclesData = []
+          if (Array.isArray(vehiclesResponse.data)) {
+            // Direct array response
+            vehiclesData = vehiclesResponse.data
+          } else if (vehiclesResponse.data && typeof vehiclesResponse.data === 'object' && 'results' in vehiclesResponse.data && Array.isArray((vehiclesResponse.data as any).results)) {
+            // Paginated response with 'results' array
+            vehiclesData = (vehiclesResponse.data as any).results
+          }
+          setVehicles(vehiclesData)
+          console.log('Vehicles loaded:', vehiclesData)
+        } else {
+          console.warn('No vehicles data received')
+          setVehicles([])
+        }
       } catch (error) {
         console.error('Error fetching data:', error)
         toast.error('Failed to load drivers and vehicles')
+        setDrivers([])
+        setVehicles([])
       }
     }
 
@@ -155,12 +188,49 @@ const TripPlanner: React.FC = () => {
         daily_duty_hours: formData.currentDailyDutyHours
       })
 
-      if (response.data) {
-        setHosStatus(response.data)
+      if (response.data && typeof response.data === 'object') {
+        // Use the data from the API response
+        const hosData = {
+          can_drive: response.data.can_drive ?? false,
+          available_drive_hours: Number(response.data.available_drive_hours) || 0,
+          available_duty_hours: Number(response.data.available_duty_hours) || 0,
+          remaining_cycle_hours: Number(response.data.remaining_cycle_hours) || 0,
+          needs_restart: response.data.needs_restart ?? false,
+          reason: response.data.reason || 'Status determined by API'
+        }
+        setHosStatus(hosData)
+      } else {
+        // If API doesn't return proper data, calculate basic compliance
+        const canDrive = formData.currentCycleHours < 70 &&
+                        formData.currentDailyDriveHours < 11 &&
+                        formData.currentDailyDutyHours < 14
+
+        setHosStatus({
+          can_drive: canDrive,
+          available_drive_hours: Math.max(0, 11 - formData.currentDailyDriveHours),
+          available_duty_hours: Math.max(0, 14 - formData.currentDailyDutyHours),
+          remaining_cycle_hours: Math.max(0, 70 - formData.currentCycleHours),
+          needs_restart: formData.currentCycleHours >= 70,
+          reason: canDrive ? 'Driver can legally drive' : 'HOS limits exceeded'
+        })
       }
     } catch (error) {
       console.error('Error checking HOS compliance:', error)
       toast.error('Failed to check HOS compliance')
+
+      // Calculate basic compliance without API
+      const canDrive = formData.currentCycleHours < 70 &&
+                      formData.currentDailyDriveHours < 11 &&
+                      formData.currentDailyDutyHours < 14
+
+      setHosStatus({
+        can_drive: canDrive,
+        available_drive_hours: Math.max(0, 11 - formData.currentDailyDriveHours),
+        available_duty_hours: Math.max(0, 14 - formData.currentDailyDutyHours),
+        remaining_cycle_hours: Math.max(0, 70 - formData.currentCycleHours),
+        needs_restart: formData.currentCycleHours >= 70,
+        reason: canDrive ? 'Driver can legally drive' : 'HOS limits exceeded'
+      })
     } finally {
       setIsLoading(false)
     }
@@ -203,26 +273,25 @@ const TripPlanner: React.FC = () => {
         notes: formData.notes
       })
 
-      if (response.data) {
-        // Create TripResult from the API response, using only properties that exist in the Trip type
+      if (response.data && typeof response.data === 'object') {
+        // Create TripResult from the API response
         const tripResult: TripResult = {
           id: response.data.id,
-          total_distance_miles: response.data.total_distance_miles || 0,
-          estimated_duration_hours: response.data.estimated_duration_hours || 0,
-          // These properties don't exist in the backend Trip type yet, so we'll use defaults
-          route: null, // Will be populated when backend adds route planning
-          stops: [], // Will be populated when backend adds stop planning
-          eld_logs: [], // Will be populated when backend adds ELD log generation
-          compliance_status: {
-            is_compliant: true,
-            violations: []
+          total_distance_miles: Number(response.data.total_distance_miles) || 0,
+          estimated_duration_hours: Number(response.data.estimated_duration_hours) || 0,
+          route: (response.data as any).route || null,
+          stops: (response.data as any).stops || [],
+          eld_logs: (response.data as any).eld_logs || [],
+          compliance_status: (response.data as any).compliance_status || {
+            is_compliant: hosStatus?.can_drive ?? true,
+            violations: hosStatus?.can_drive ? [] : ['HOS compliance issue detected']
           }
         }
         setTripResult(tripResult)
         toast.success('Trip planned successfully!')
-        setCurrentStep(4) // Move to results step
+        setCurrentStep(4)
       } else {
-        throw new Error(response.error || 'Failed to create trip')
+        throw new Error(response.error || 'Failed to create trip - no data received')
       }
     } catch (error: any) {
       console.error('Error creating trip:', error)
@@ -483,15 +552,15 @@ const TripPlanner: React.FC = () => {
                       <div className="mt-2 grid grid-cols-3 gap-4 text-xs">
                         <div>
                           <span className="font-medium">Available Drive: </span>
-                          {hosStatus.available_drive_hours.toFixed(1)}h
+                          {(hosStatus.available_drive_hours ?? 0).toFixed(1)}h
                         </div>
                         <div>
                           <span className="font-medium">Available Duty: </span>
-                          {hosStatus.available_duty_hours.toFixed(1)}h
+                          {(hosStatus.available_duty_hours ?? 0).toFixed(1)}h
                         </div>
                         <div>
                           <span className="font-medium">Cycle Remaining: </span>
-                          {hosStatus.remaining_cycle_hours.toFixed(1)}h
+                          {(hosStatus.remaining_cycle_hours ?? 0).toFixed(1)}h
                         </div>
                       </div>
                     </div>
@@ -510,9 +579,9 @@ const TripPlanner: React.FC = () => {
                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
                   >
                     <option value="">Select a driver</option>
-                    {drivers.map((driver) => (
+                    {Array.isArray(drivers) && drivers.map((driver) => (
                       <option key={driver.id} value={driver.id}>
-                        {driver.name} ({driver.license_number})
+                        {driver.name || driver.full_display_name} ({driver.license_number})
                       </option>
                     ))}
                   </select>
@@ -528,9 +597,9 @@ const TripPlanner: React.FC = () => {
                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
                   >
                     <option value="">Select a vehicle</option>
-                    {vehicles.map((vehicle) => (
+                    {Array.isArray(vehicles) && vehicles.map((vehicle) => (
                       <option key={vehicle.id} value={vehicle.id}>
-                        {vehicle.license_plate} - {vehicle.make} {vehicle.model}
+                        {vehicle.display_name || `${vehicle.license_plate} - ${vehicle.make} ${vehicle.model}`}
                       </option>
                     ))}
                   </select>
