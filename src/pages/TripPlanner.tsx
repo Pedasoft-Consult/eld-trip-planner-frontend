@@ -47,14 +47,16 @@ interface HOSStatus {
   reason?: string
 }
 
+// TripResult interface for frontend display (may have more properties than backend Trip type)
 interface TripResult {
   id: number
   total_distance_miles: number
   estimated_duration_hours: number
-  route: any
-  stops: any[]
-  eld_logs: any[]
-  compliance_status: {
+  // These properties will be added as the backend is enhanced
+  route?: any
+  stops?: any[]
+  eld_logs?: any[]
+  compliance_status?: {
     is_compliant: boolean
     violations: string[]
   }
@@ -202,20 +204,21 @@ const TripPlanner: React.FC = () => {
       })
 
       if (response.data) {
-        // Fixed: Ensure all required properties are present with default values
-        const mockTripResult: TripResult = {
+        // Create TripResult from the API response, using only properties that exist in the Trip type
+        const tripResult: TripResult = {
           id: response.data.id,
           total_distance_miles: response.data.total_distance_miles || 0,
           estimated_duration_hours: response.data.estimated_duration_hours || 0,
-          route: response.data.route || null,
-          stops: response.data.stops || [],
-          eld_logs: response.data.eld_logs || [],
+          // These properties don't exist in the backend Trip type yet, so we'll use defaults
+          route: null, // Will be populated when backend adds route planning
+          stops: [], // Will be populated when backend adds stop planning
+          eld_logs: [], // Will be populated when backend adds ELD log generation
           compliance_status: {
             is_compliant: true,
             violations: []
           }
         }
-        setTripResult(mockTripResult)
+        setTripResult(tripResult)
         toast.success('Trip planned successfully!')
         setCurrentStep(4) // Move to results step
       } else {
@@ -596,7 +599,7 @@ const TripPlanner: React.FC = () => {
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.stops.length}
+                      {tripResult.stops?.length || 0}
                     </div>
                     <div className="text-sm text-gray-600">Planned Stops</div>
                   </div>
@@ -604,23 +607,23 @@ const TripPlanner: React.FC = () => {
 
                 {/* Compliance Status */}
                 <div className={`p-4 rounded-lg border ${
-                  tripResult.compliance_status.is_compliant 
+                  tripResult.compliance_status?.is_compliant 
                     ? 'bg-green-50 border-green-200' 
                     : 'bg-yellow-50 border-yellow-200'
                 }`}>
                   <div className="flex items-start">
-                    {tripResult.compliance_status.is_compliant ? (
+                    {tripResult.compliance_status?.is_compliant ? (
                       <CheckCircleIcon className="h-5 w-5 text-green-500 mt-0.5 mr-3" />
                     ) : (
                       <ExclamationTriangleIcon className="h-5 w-5 text-yellow-500 mt-0.5 mr-3" />
                     )}
                     <div>
                       <h3 className={`text-sm font-medium ${
-                        tripResult.compliance_status.is_compliant ? 'text-green-800' : 'text-yellow-800'
+                        tripResult.compliance_status?.is_compliant ? 'text-green-800' : 'text-yellow-800'
                       }`}>
-                        {tripResult.compliance_status.is_compliant ? 'Trip is HOS Compliant' : 'Compliance Warnings'}
+                        {tripResult.compliance_status?.is_compliant ? 'Trip is HOS Compliant' : 'Compliance Warnings'}
                       </h3>
-                      {tripResult.compliance_status.violations.length > 0 && (
+                      {tripResult.compliance_status?.violations && tripResult.compliance_status.violations.length > 0 && (
                         <ul className="text-sm text-yellow-700 mt-1">
                           {tripResult.compliance_status.violations.map((violation, index) => (
                             <li key={index}>• {violation}</li>

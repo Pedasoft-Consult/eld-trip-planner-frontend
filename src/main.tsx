@@ -1,20 +1,27 @@
-// src/main.tsx - Fixed entry point
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
 import App from './App'
-import './styles/index.css'
+import './index.css'
 
-// Ensure the root element exists
+// Get root element
 const rootElement = document.getElementById('root')
-if (!rootElement) {
-  throw new Error('Root element not found')
-}
+if (!rootElement) throw new Error('Failed to find the root element')
 
-ReactDOM.createRoot(rootElement).render(
+// Create root and render app
+const root = ReactDOM.createRoot(rootElement)
+root.render(
   <React.StrictMode>
-    <BrowserRouter>
-      <App />
-    </BrowserRouter>
+    <App />
   </React.StrictMode>
 )
+
+// Hide loading screen after React app mounts
+setTimeout(() => {
+  document.body.classList.add('app-loaded')
+  setTimeout(() => {
+    const loadingScreen = document.getElementById('loading-screen')
+    if (loadingScreen) {
+      loadingScreen.remove()
+    }
+  }, 500)
+}, 100)
