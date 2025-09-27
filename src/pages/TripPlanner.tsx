@@ -1,3 +1,6 @@
+// Updated TripPlanner.tsx with proper ELD logs handling
+// Replace the existing TripPlanner component with this updated version
+
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -23,6 +26,7 @@ import Card from '@/components/ui/Card'
 import Button from '@/components/ui/Button'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import Input from '@/components/ui/Input'
+import RouteMap from '@/components/maps/RouteMap'
 import ErrorMessage from '@/components/ui/ErrorMessage'
 
 // Types
@@ -47,15 +51,82 @@ interface HOSStatus {
   reason?: string
 }
 
-// TripResult interface for frontend display (may have more properties than backend Trip type)
-interface TripResult {
+interface Location {
   id: number
-  total_distance_miles: number
-  estimated_duration_hours: number
-  // These properties will be added as the backend is enhanced
-  route?: any
+  address: string
+  latitude: string
+  longitude: string
+  city: string
+  state: string
+  country: string
+  postal_code: string
+  display_address: string
+}
+
+interface RouteSegment {
+  id: number
+  sequence_order: number
+  start_location: Location
+  end_location: Location
+  distance_miles: string
+  estimated_time_hours: string
+  geometry: any
+}
+
+// Updated ELD Log interfaces to match API response
+interface DutyEntry {
+  duty_status: string
+  start_time: string
+  end_time: string | null
+  duration_minutes: number
+  location: string
+  remarks: string
+}
+
+interface ELDLog {
+  id: number
+  log_date: string
+  driver: {
+    name: string
+    license_number: string
+  }
+  vehicle: {
+    license_plate: string
+    make: string
+    model: string
+  }
+  totals: {
+    drive_time: number
+    on_duty_time: number
+    off_duty_time: number
+    miles_driven: number
+  }
+  cycle_hours_used: number
+  is_compliant: boolean
+  violations: string
+  duty_entries: DutyEntry[]
+}
+
+interface ELDLogsResponse {
+  trip_id: number
+  logs: ELDLog[]
+}
+
+// Updated TripResult interface to match actual API response
+interface TripResult {
+  id?: number
+  trip_id?: number
+  total_distance_miles?: number
+  total_distance?: number
+  estimated_duration_hours?: number
+  estimated_duration?: number
+  segments?: RouteSegment[]
+  route?: {
+    segments: RouteSegment[]
+  }
   stops?: any[]
-  eld_logs?: any[]
+  eld_logs?: any[] // Keep as any[] to match RouteMap component expectation
+  eld_logs_data?: ELDLogsResponse | ELDLog[] // Add separate property for typed ELD data
   compliance_status?: {
     is_compliant: boolean
     violations: string[]
@@ -93,16 +164,12 @@ const TripPlanner: React.FC = () => {
         if (driversResponse.data) {
           let driversData = []
           if (Array.isArray(driversResponse.data)) {
-            // Direct array response
             driversData = driversResponse.data
           } else if (driversResponse.data && typeof driversResponse.data === 'object' && 'results' in driversResponse.data && Array.isArray((driversResponse.data as any).results)) {
-            // Paginated response with 'results' array
             driversData = (driversResponse.data as any).results
           }
           setDrivers(driversData)
-          console.log('Drivers loaded:', driversData)
         } else {
-          console.warn('No drivers data received')
           setDrivers([])
         }
 
@@ -110,16 +177,12 @@ const TripPlanner: React.FC = () => {
         if (vehiclesResponse.data) {
           let vehiclesData = []
           if (Array.isArray(vehiclesResponse.data)) {
-            // Direct array response
             vehiclesData = vehiclesResponse.data
           } else if (vehiclesResponse.data && typeof vehiclesResponse.data === 'object' && 'results' in vehiclesResponse.data && Array.isArray((vehiclesResponse.data as any).results)) {
-            // Paginated response with 'results' array
             vehiclesData = (vehiclesResponse.data as any).results
           }
           setVehicles(vehiclesData)
-          console.log('Vehicles loaded:', vehiclesData)
         } else {
-          console.warn('No vehicles data received')
           setVehicles([])
         }
       } catch (error) {
@@ -169,10 +232,9 @@ const TripPlanner: React.FC = () => {
     return Object.keys(newErrors).length === 0
   }
 
-  // Handle input changes - Fixed to handle both string and number types
+  // Handle input changes
   const handleInputChange = (field: keyof TripFormData, value: string | number | undefined) => {
     setFormData(prev => ({ ...prev, [field]: value }))
-    // Clear error when user starts typing
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }))
     }
@@ -189,7 +251,6 @@ const TripPlanner: React.FC = () => {
       })
 
       if (response.data && typeof response.data === 'object') {
-        // Use the data from the API response
         const hosData = {
           can_drive: response.data.can_drive ?? false,
           available_drive_hours: Number(response.data.available_drive_hours) || 0,
@@ -200,7 +261,6 @@ const TripPlanner: React.FC = () => {
         }
         setHosStatus(hosData)
       } else {
-        // If API doesn't return proper data, calculate basic compliance
         const canDrive = formData.currentCycleHours < 70 &&
                         formData.currentDailyDriveHours < 11 &&
                         formData.currentDailyDutyHours < 14
@@ -218,7 +278,6 @@ const TripPlanner: React.FC = () => {
       console.error('Error checking HOS compliance:', error)
       toast.error('Failed to check HOS compliance')
 
-      // Calculate basic compliance without API
       const canDrive = formData.currentCycleHours < 70 &&
                       formData.currentDailyDriveHours < 11 &&
                       formData.currentDailyDutyHours < 14
@@ -254,54 +313,106 @@ const TripPlanner: React.FC = () => {
   }
 
   // Submit trip planning request
-  const handleSubmit = async () => {
-    if (!validateStep(currentStep)) {
-      return
-    }
+ const handleSubmit = async () => {
+  if (!validateStep(currentStep)) {
+    return
+  }
 
-    try {
-      setIsLoading(true)
-      const response = await tripService.createTrip({
-        current_location: formData.currentLocation,
-        pickup_location: formData.pickupLocation,
-        dropoff_location: formData.dropoffLocation,
-        current_cycle_hours: formData.currentCycleHours,
-        current_daily_drive_hours: formData.currentDailyDriveHours,
-        current_daily_duty_hours: formData.currentDailyDutyHours,
-        driver_id: formData.driverId,
-        vehicle_id: formData.vehicleId,
-        notes: formData.notes
-      })
+  try {
+    setIsLoading(true)
+    const response = await tripService.createTrip({
+      current_location: formData.currentLocation,
+      pickup_location: formData.pickupLocation,
+      dropoff_location: formData.dropoffLocation,
+      current_cycle_hours: formData.currentCycleHours,
+      current_daily_drive_hours: formData.currentDailyDriveHours,
+      current_daily_duty_hours: formData.currentDailyDutyHours,
+      driver_id: formData.driverId,
+      vehicle_id: formData.vehicleId,
+      notes: formData.notes
+    })
 
-      if (response.data && typeof response.data === 'object') {
-        // Create TripResult from the API response
-        const tripResult: TripResult = {
-          id: response.data.id,
-          total_distance_miles: Number(response.data.total_distance_miles) || 0,
-          estimated_duration_hours: Number(response.data.estimated_duration_hours) || 0,
-          route: (response.data as any).route || null,
-          stops: (response.data as any).stops || [],
-          eld_logs: (response.data as any).eld_logs || [],
-          compliance_status: (response.data as any).compliance_status || {
-            is_compliant: hosStatus?.can_drive ?? true,
-            violations: hosStatus?.can_drive ? [] : ['HOS compliance issue detected']
-          }
+    if (response.data && typeof response.data === 'object') {
+      console.log('API Response:', response.data)
+      const apiData = response.data as any
+
+      const tripResult: TripResult = {
+        id: response.data.id,
+        trip_id: response.data.id,
+        total_distance_miles: Number(response.data.total_distance_miles) || 0,
+        total_distance: Number(response.data.total_distance_miles) || 0,
+        estimated_duration_hours: Number(response.data.estimated_duration_hours) || 0,
+        estimated_duration: Number(response.data.estimated_duration_hours) || 0,
+        segments: apiData.route_segments || apiData.segments || [],
+        stops: apiData.stops || [],
+        eld_logs: apiData.eld_logs || [], // Keep as any[] for RouteMap compatibility
+        eld_logs_data: apiData.eld_logs_response || apiData.eld_logs || [], // Store actual ELD data
+        compliance_status: apiData.compliance_status || {
+          is_compliant: hosStatus?.can_drive ?? true,
+          violations: hosStatus?.can_drive ? [] : ['HOS compliance issue detected']
         }
-        setTripResult(tripResult)
-        toast.success('Trip planned successfully!')
-        setCurrentStep(4)
-      } else {
-        throw new Error(response.error || 'Failed to create trip - no data received')
       }
-    } catch (error: any) {
-      console.error('Error creating trip:', error)
-      toast.error(error.message || 'Failed to plan trip')
-    } finally {
-      setIsLoading(false)
+
+      console.log('Processed Trip Result:', tripResult)
+      setTripResult(tripResult)
+      toast.success('Trip planned successfully!')
+      setCurrentStep(4)
+    } else {
+      throw new Error(response.error || 'Failed to create trip - no data received')
+    }
+  } catch (error: any) {
+    console.error('Error creating trip:', error)
+    toast.error(error.message || 'Failed to plan trip')
+  } finally {
+    setIsLoading(false)
+  }
+}
+  // Helper functions
+  const getTotalDistance = () => {
+    return tripResult?.total_distance_miles || tripResult?.total_distance || 0
+  }
+
+  const getTotalDuration = () => {
+    return tripResult?.estimated_duration_hours || tripResult?.estimated_duration || 0
+  }
+
+  // Helper function to get ELD logs array from different response formats
+const getELDLogs = (): ELDLog[] => {
+  if (!tripResult?.eld_logs_data) return []
+
+  // Handle the actual API response structure
+  if (Array.isArray(tripResult.eld_logs_data)) {
+    return tripResult.eld_logs_data as ELDLog[]
+  } else if (typeof tripResult.eld_logs_data === 'object' && 'logs' in tripResult.eld_logs_data) {
+    return (tripResult.eld_logs_data as ELDLogsResponse).logs
+  }
+
+  return []
+}
+
+  // Format time for display
+  const formatTime = (timeString: string) => {
+    try {
+      return new Date(timeString).toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    } catch {
+      return timeString
     }
   }
 
-  // Step titles for progress indicator
+  // Format duty status for display
+  const formatDutyStatus = (status: string) => {
+    const statusMap: Record<string, string> = {
+      'OFF': 'Off Duty',
+      'ON': 'On Duty',
+      'DRIVE': 'Driving',
+      'SB': 'Sleeper Berth'
+    }
+    return statusMap[status] || status
+  }
+
   const stepTitles = [
     'Route Information',
     'Hours of Service',
@@ -656,21 +767,21 @@ const TripPlanner: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.total_distance_miles.toFixed(1)} mi
+                      {getTotalDistance().toFixed(1)} mi
                     </div>
                     <div className="text-sm text-gray-600">Total Distance</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.estimated_duration_hours.toFixed(1)} hrs
+                      {getTotalDuration().toFixed(1)} hrs
                     </div>
                     <div className="text-sm text-gray-600">Estimated Duration</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.stops?.length || 0}
+                      {getELDLogs().length}
                     </div>
-                    <div className="text-sm text-gray-600">Planned Stops</div>
+                    <div className="text-sm text-gray-600">ELD Log Days</div>
                   </div>
                 </div>
 
@@ -707,24 +818,18 @@ const TripPlanner: React.FC = () => {
               {/* Interactive Map */}
               <Card title="Route Map" className="h-96">
                 <div className="h-full bg-gray-100 rounded-lg flex items-center justify-center">
-                  <div className="text-center">
-                    <MapIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
-                    <p className="text-gray-600">Interactive map with route and stops</p>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Map integration would show the complete route with fuel stops, rest areas, and mandatory breaks
-                    </p>
-                  </div>
+                   <RouteMap tripResult={tripResult} />
                 </div>
               </Card>
 
-              {/* ELD Logs */}
+              {/* ELD Logs - Updated to handle actual API response structure */}
               <Card
                 title="ELD Daily Log Sheets"
                 actions={
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm">
                       <EyeIcon className="h-4 w-4 mr-1" />
-                      View
+                      View All
                     </Button>
                     <Button variant="outline" size="sm">
                       <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
@@ -734,17 +839,108 @@ const TripPlanner: React.FC = () => {
                 }
               >
                 <div className="space-y-4">
-                  {tripResult.eld_logs && tripResult.eld_logs.length > 0 ? (
-                    tripResult.eld_logs.map((log: any, index: number) => (
-                      <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="font-medium">Day {index + 1} - {log.log_date}</h4>
-                          <div className="text-sm text-gray-600">
-                            Drive: {log.totals?.drive_time || '0'}h | Duty: {log.totals?.on_duty_time || '0'}h
+                  {getELDLogs().length > 0 ? (
+                    getELDLogs().map((log: ELDLog, index: number) => (
+                      <div key={log.id || index} className="border rounded-lg p-4 bg-gray-50">
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h4 className="font-medium text-gray-900">
+                              {log.log_date}
+                            </h4>
+                            <p className="text-sm text-gray-600">
+                              {log.driver?.name} • {log.vehicle?.license_plate} ({log.vehicle?.make} {log.vehicle?.model})
+                            </p>
+                          </div>
+                          <div className={`px-2 py-1 rounded text-xs font-medium ${
+                            log.is_compliant 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {log.is_compliant ? 'Compliant' : 'Non-Compliant'}
                           </div>
                         </div>
-                        <div className="text-sm text-gray-600">
-                          Compliance: {log.is_compliant ? 'Compliant' : 'Non-Compliant'}
+
+                        {/* Daily Totals */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-white rounded border">
+                          <div className="text-center">
+                            <div className="text-lg font-semibold text-gray-900">
+                              {log.totals?.drive_time?.toFixed(1) || '0.0'}h
+                            </div>
+                            <div className="text-xs text-gray-600">Drive Time</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-semibold text-gray-900">
+                              {log.totals?.on_duty_time?.toFixed(1) || '0.0'}h
+                            </div>
+                            <div className="text-xs text-gray-600">On Duty</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-semibold text-gray-900">
+                              {log.cycle_hours_used?.toFixed(1) || '0.0'}h
+                            </div>
+                            <div className="text-xs text-gray-600">Cycle Hours</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="text-lg font-semibold text-gray-900">
+                              {log.totals?.miles_driven?.toFixed(0) || '0'} mi
+                            </div>
+                            <div className="text-xs text-gray-600">Miles</div>
+                          </div>
+                        </div>
+
+                        {/* Duty Status Entries */}
+                        <div className="space-y-2">
+                          <h5 className="text-sm font-medium text-gray-700">Duty Status Changes</h5>
+                          <div className="space-y-1">
+                            {log.duty_entries?.map((entry: DutyEntry, entryIndex: number) => (
+                              <div key={entryIndex} className="flex items-center justify-between py-2 px-3 bg-white rounded border-l-4 border-blue-500">
+                                <div className="flex items-center space-x-3">
+                                  <div className={`px-2 py-1 rounded text-xs font-medium ${
+                                    entry.duty_status === 'DRIVE' ? 'bg-green-100 text-green-800' :
+                                    entry.duty_status === 'ON' ? 'bg-blue-100 text-blue-800' :
+                                    entry.duty_status === 'OFF' ? 'bg-gray-100 text-gray-800' :
+                                    'bg-purple-100 text-purple-800'
+                                  }`}>
+                                    {formatDutyStatus(entry.duty_status)}
+                                  </div>
+                                  <div>
+                                    <div className="text-sm font-medium">
+                                      {formatTime(entry.start_time)}
+                                      {entry.end_time && ` - ${formatTime(entry.end_time)}`}
+                                    </div>
+                                    <div className="text-xs text-gray-600">
+                                      {entry.location} • {entry.duration_minutes} min
+                                    </div>
+                                  </div>
+                                </div>
+                                {entry.remarks && (
+                                  <div className="text-xs text-gray-500 italic">
+                                    {entry.remarks}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Violations */}
+                        {log.violations && log.violations.trim() !== '' && (
+                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+                            <h6 className="text-sm font-medium text-red-800 mb-1">Violations</h6>
+                            <p className="text-sm text-red-700">{log.violations}</p>
+                          </div>
+                        )}
+
+                        {/* Action buttons for individual logs */}
+                        <div className="flex justify-end space-x-2 mt-4 pt-3 border-t">
+                          <Button variant="outline" size="sm">
+                            <EyeIcon className="h-3 w-3 mr-1" />
+                            View Details
+                          </Button>
+                          <Button variant="outline" size="sm">
+                            <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+                            Export
+                          </Button>
                         </div>
                       </div>
                     ))
@@ -752,6 +948,9 @@ const TripPlanner: React.FC = () => {
                     <div className="text-center py-8">
                       <DocumentTextIcon className="h-12 w-12 text-gray-400 mx-auto mb-2" />
                       <p className="text-gray-600">ELD logs will be generated automatically</p>
+                      <p className="text-sm text-gray-500 mt-1">
+                        Complete the trip planning to generate detailed daily log sheets
+                      </p>
                     </div>
                   )}
                 </div>
@@ -763,6 +962,7 @@ const TripPlanner: React.FC = () => {
                   onClick={() => {
                     setCurrentStep(1)
                     setTripResult(null)
+                    setHosStatus(null)
                     setFormData({
                       currentLocation: '',
                       pickupLocation: '',

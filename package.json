@@ -51,6 +51,7 @@
     "@vitejs/plugin-react": "^4.1.1",
     "@vitest/ui": "^0.34.0",
     "autoprefixer": "^10.4.16",
+    "mapbox-gl": "^2.15.0",
     "esbuild": "^0.25.10",
     "eslint": "^8.53.0",
     "eslint-plugin-react-hooks": "^4.6.0",
