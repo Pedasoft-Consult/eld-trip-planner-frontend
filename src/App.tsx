@@ -340,16 +340,16 @@ function App() {
             },
             success: {
               duration: 3000,
-              theme: {
-                primary: '#22c55e',
-                secondary: '#ffffff',
+              style: {
+                background: '#22c55e',
+                color: '#ffffff',
               },
             },
             error: {
               duration: 5000,
-              theme: {
-                primary: '#ef4444',
-                secondary: '#ffffff',
+              style: {
+                background: '#ef4444',
+                color: '#ffffff',
               },
             },
           }}

@@ -9,12 +9,10 @@ import {
   ChartBarIcon,
   ExclamationTriangleIcon,
   CheckCircleIcon,
-  ArrowUpIcon,
-  ArrowDownIcon
 } from '@heroicons/react/24/outline'
 
 // API Services
-import { dashboardService, driverService, vehicleService } from '@/api/services'
+import { dashboardService } from '@/api/services'
 
 // Components
 import Card from '@/components/ui/Card'
@@ -80,7 +78,9 @@ const Dashboard: React.FC = () => {
         if (statsResponse.error) {
           throw new Error(statsResponse.error)
         }
-        setStats(statsResponse.data)
+        if (statsResponse.data) {
+          setStats(statsResponse.data)
+        }
 
         // Mock recent activity data - in production this would come from the API
         const mockActivity: RecentActivity[] = [
@@ -250,7 +250,7 @@ const Dashboard: React.FC = () => {
         {/* Compliance Alerts */}
         <Card title="Compliance Alerts" className="h-fit">
           <div className="space-y-4">
-            {stats?.dashboard_data.alerts.high_priority > 0 && (
+            {stats?.dashboard_data.alerts.high_priority && stats.dashboard_data.alerts.high_priority > 0 && (
               <div className="flex items-center p-3 bg-red-50 rounded-lg">
                 <ExclamationTriangleIcon className="h-5 w-5 text-red-500 mr-3" />
                 <div>
@@ -262,7 +262,7 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            {stats?.dashboard_data.alerts.medium_priority > 0 && (
+            {stats?.dashboard_data.alerts.medium_priority && stats.dashboard_data.alerts.medium_priority > 0 && (
               <div className="flex items-center p-3 bg-yellow-50 rounded-lg">
                 <ClockIcon className="h-5 w-5 text-yellow-500 mr-3" />
                 <div>
@@ -274,7 +274,7 @@ const Dashboard: React.FC = () => {
               </div>
             )}
 
-            {stats?.dashboard_data.alerts.needs_attention > 0 && (
+            {stats?.dashboard_data.alerts.needs_attention && stats.dashboard_data.alerts.needs_attention > 0 && (
               <div className="flex items-center p-3 bg-blue-50 rounded-lg">
                 <UserIcon className="h-5 w-5 text-blue-500 mr-3" />
                 <div>

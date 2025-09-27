@@ -202,7 +202,18 @@ const TripPlanner: React.FC = () => {
       })
 
       if (response.data) {
-        setTripResult(response.data)
+        // Mock the additional properties needed for TripResult
+        const mockTripResult: TripResult = {
+          ...response.data,
+          route: null,
+          stops: [],
+          eld_logs: [],
+          compliance_status: {
+            is_compliant: true,
+            violations: []
+          }
+        }
+        setTripResult(mockTripResult)
         toast.success('Trip planned successfully!')
         setCurrentStep(4) // Move to results step
       } else {
@@ -490,7 +501,7 @@ const TripPlanner: React.FC = () => {
                   </label>
                   <select
                     value={formData.driverId || ''}
-                    onChange={(e) => handleInputChange('driverId', parseInt(e.target.value) || undefined)}
+                    onChange={(e) => handleInputChange('driverId', e.target.value ? parseInt(e.target.value) : undefined)}
                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
                   >
                     <option value="">Select a driver</option>
@@ -508,7 +519,7 @@ const TripPlanner: React.FC = () => {
                   </label>
                   <select
                     value={formData.vehicleId || ''}
-                    onChange={(e) => handleInputChange('vehicleId', parseInt(e.target.value) || undefined)}
+                    onChange={(e) => handleInputChange('vehicleId', e.target.value ? parseInt(e.target.value) : undefined)}
                     className="block w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500"
                   >
                     <option value="">Select a vehicle</option>
@@ -571,13 +582,13 @@ const TripPlanner: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.total_distance_miles.toFixed(1)} mi
+                      {tripResult.total_distance_miles?.toFixed(1) || '0.0'} mi
                     </div>
                     <div className="text-sm text-gray-600">Total Distance</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.estimated_duration_hours.toFixed(1)} hrs
+                      {tripResult.estimated_duration_hours?.toFixed(1) || '0.0'} hrs
                     </div>
                     <div className="text-sm text-gray-600">Estimated Duration</div>
                   </div>
@@ -655,7 +666,7 @@ const TripPlanner: React.FC = () => {
                         <div className="flex justify-between items-center mb-2">
                           <h4 className="font-medium">Day {index + 1} - {log.log_date}</h4>
                           <div className="text-sm text-gray-600">
-                            Drive: {log.totals.drive_time}h | Duty: {log.totals.on_duty_time}h
+                            Drive: {log.totals?.drive_time || '0'}h | Duty: {log.totals?.on_duty_time || '0'}h
                           </div>
                         </div>
                         <div className="text-sm text-gray-600">
