@@ -1,6 +1,4 @@
-// Updated TripPlanner.tsx with proper ELD logs handling
-// Replace the existing TripPlanner component with this updated version
-
+// Enhanced TripPlanner.tsx with proper API integration
 import React, { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -15,7 +13,9 @@ import {
   UserIcon,
   DocumentTextIcon,
   ArrowDownTrayIcon,
-  EyeIcon
+  EyeIcon,
+  BoltIcon,
+  MapPinIcon
 } from '@heroicons/react/24/outline'
 
 // API Services
@@ -73,7 +73,19 @@ interface RouteSegment {
   geometry: any
 }
 
-// Updated ELD Log interfaces to match API response
+interface FuelStop {
+  id: number
+  location: string
+  address: string
+  latitude?: number
+  longitude?: number
+  mileage: number
+  estimated_fuel_gallons: number
+  estimated_fuel_cost: number
+  station_name: string
+  amenities: string[]
+}
+
 interface DutyEntry {
   duty_status: string
   start_time: string
@@ -99,12 +111,19 @@ interface ELDLog {
     drive_time: number
     on_duty_time: number
     off_duty_time: number
+    sleeper_berth_time?: number
     miles_driven: number
   }
   cycle_hours_used: number
   is_compliant: boolean
   violations: string
   duty_entries: DutyEntry[]
+  // Add visual grid data if provided by API
+  grid_data?: Array<{
+    hour: number
+    status: 'OFF' | 'SB' | 'D' | 'ON'
+    location?: string
+  }>
 }
 
 interface ELDLogsResponse {
@@ -112,7 +131,6 @@ interface ELDLogsResponse {
   logs: ELDLog[]
 }
 
-// Updated TripResult interface to match actual API response
 interface TripResult {
   id?: number
   trip_id?: number
@@ -125,8 +143,9 @@ interface TripResult {
     segments: RouteSegment[]
   }
   stops?: any[]
-  eld_logs?: any[] // Keep as any[] to match RouteMap component expectation
-  eld_logs_data?: ELDLogsResponse | ELDLog[] // Add separate property for typed ELD data
+  fuel_stops?: FuelStop[]
+  eld_logs?: any[]
+  eld_logs_data?: ELDLogsResponse | ELDLog[]
   compliance_status?: {
     is_compliant: boolean
     violations: string[]
@@ -261,6 +280,7 @@ const TripPlanner: React.FC = () => {
         }
         setHosStatus(hosData)
       } else {
+        // Fallback calculation if API doesn't respond properly
         const canDrive = formData.currentCycleHours < 70 &&
                         formData.currentDailyDriveHours < 11 &&
                         formData.currentDailyDutyHours < 14
@@ -278,6 +298,7 @@ const TripPlanner: React.FC = () => {
       console.error('Error checking HOS compliance:', error)
       toast.error('Failed to check HOS compliance')
 
+      // Fallback calculation
       const canDrive = formData.currentCycleHours < 70 &&
                       formData.currentDailyDriveHours < 11 &&
                       formData.currentDailyDutyHours < 14
@@ -313,60 +334,62 @@ const TripPlanner: React.FC = () => {
   }
 
   // Submit trip planning request
- const handleSubmit = async () => {
-  if (!validateStep(currentStep)) {
-    return
-  }
-
-  try {
-    setIsLoading(true)
-    const response = await tripService.createTrip({
-      current_location: formData.currentLocation,
-      pickup_location: formData.pickupLocation,
-      dropoff_location: formData.dropoffLocation,
-      current_cycle_hours: formData.currentCycleHours,
-      current_daily_drive_hours: formData.currentDailyDriveHours,
-      current_daily_duty_hours: formData.currentDailyDutyHours,
-      driver_id: formData.driverId,
-      vehicle_id: formData.vehicleId,
-      notes: formData.notes
-    })
-
-    if (response.data && typeof response.data === 'object') {
-      console.log('API Response:', response.data)
-      const apiData = response.data as any
-
-      const tripResult: TripResult = {
-        id: response.data.id,
-        trip_id: response.data.id,
-        total_distance_miles: Number(response.data.total_distance_miles) || 0,
-        total_distance: Number(response.data.total_distance_miles) || 0,
-        estimated_duration_hours: Number(response.data.estimated_duration_hours) || 0,
-        estimated_duration: Number(response.data.estimated_duration_hours) || 0,
-        segments: apiData.route_segments || apiData.segments || [],
-        stops: apiData.stops || [],
-        eld_logs: apiData.eld_logs || [], // Keep as any[] for RouteMap compatibility
-        eld_logs_data: apiData.eld_logs_response || apiData.eld_logs || [], // Store actual ELD data
-        compliance_status: apiData.compliance_status || {
-          is_compliant: hosStatus?.can_drive ?? true,
-          violations: hosStatus?.can_drive ? [] : ['HOS compliance issue detected']
-        }
-      }
-
-      console.log('Processed Trip Result:', tripResult)
-      setTripResult(tripResult)
-      toast.success('Trip planned successfully!')
-      setCurrentStep(4)
-    } else {
-      throw new Error(response.error || 'Failed to create trip - no data received')
+  const handleSubmit = async () => {
+    if (!validateStep(currentStep)) {
+      return
     }
-  } catch (error: any) {
-    console.error('Error creating trip:', error)
-    toast.error(error.message || 'Failed to plan trip')
-  } finally {
-    setIsLoading(false)
+
+    try {
+      setIsLoading(true)
+      const response = await tripService.createTrip({
+        current_location: formData.currentLocation,
+        pickup_location: formData.pickupLocation,
+        dropoff_location: formData.dropoffLocation,
+        current_cycle_hours: formData.currentCycleHours,
+        current_daily_drive_hours: formData.currentDailyDriveHours,
+        current_daily_duty_hours: formData.currentDailyDutyHours,
+        driver_id: formData.driverId,
+        vehicle_id: formData.vehicleId,
+        notes: formData.notes
+      })
+
+      if (response.data && typeof response.data === 'object') {
+        console.log('API Response:', response.data)
+        const apiData = response.data as any
+
+        const tripResult: TripResult = {
+          id: response.data.id,
+          trip_id: response.data.id,
+          total_distance_miles: Number(response.data.total_distance_miles) || 0,
+          total_distance: Number(response.data.total_distance_miles) || 0,
+          estimated_duration_hours: Number(response.data.estimated_duration_hours) || 0,
+          estimated_duration: Number(response.data.estimated_duration_hours) || 0,
+          segments: apiData.route_segments || apiData.segments || [],
+          stops: apiData.stops || [],
+          fuel_stops: apiData.fuel_stops || [], // From API
+          eld_logs: apiData.eld_logs || [], // Keep as any[] for RouteMap compatibility
+          eld_logs_data: apiData.eld_logs_response || apiData.eld_logs || [], // Store actual ELD data
+          compliance_status: apiData.compliance_status || {
+            is_compliant: hosStatus?.can_drive ?? true,
+            violations: hosStatus?.can_drive ? [] : ['HOS compliance issue detected']
+          }
+        }
+
+        console.log('Processed Trip Result:', tripResult)
+        setTripResult(tripResult)
+        toast.success('Trip planned successfully!')
+        setCurrentStep(4)
+      } else {
+        throw new Error(response.error || 'Failed to create trip - no data received')
+      }
+    } catch (error: any) {
+      console.error('Error creating trip:', error)
+      toast.error(error.message || 'Failed to plan trip')
+    } finally {
+      setIsLoading(false)
+    }
   }
-}
+
   // Helper functions
   const getTotalDistance = () => {
     return tripResult?.total_distance_miles || tripResult?.total_distance || 0
@@ -377,18 +400,77 @@ const TripPlanner: React.FC = () => {
   }
 
   // Helper function to get ELD logs array from different response formats
-const getELDLogs = (): ELDLog[] => {
-  if (!tripResult?.eld_logs_data) return []
+  const getELDLogs = (): ELDLog[] => {
+    if (!tripResult?.eld_logs_data) return []
 
-  // Handle the actual API response structure
-  if (Array.isArray(tripResult.eld_logs_data)) {
-    return tripResult.eld_logs_data as ELDLog[]
-  } else if (typeof tripResult.eld_logs_data === 'object' && 'logs' in tripResult.eld_logs_data) {
-    return (tripResult.eld_logs_data as ELDLogsResponse).logs
+    if (Array.isArray(tripResult.eld_logs_data)) {
+      return tripResult.eld_logs_data as ELDLog[]
+    } else if (typeof tripResult.eld_logs_data === 'object' && 'logs' in tripResult.eld_logs_data) {
+      return (tripResult.eld_logs_data as ELDLogsResponse).logs
+    }
+
+    return []
   }
 
-  return []
-}
+  // Helper function to get fuel stops from API data
+  const getFuelStops = (): FuelStop[] => {
+    return tripResult?.fuel_stops || []
+  }
+
+  // Generate visual grid data from duty entries if not provided by API
+  const generateVisualGrid = (log: ELDLog): Array<{ hour: number; status: 'OFF' | 'SB' | 'D' | 'ON'; location?: string }> => {
+    if (log.grid_data) {
+      return log.grid_data
+    }
+
+    // Generate from duty_entries if available
+    const grid: Array<{ hour: number; status: 'OFF' | 'SB' | 'D' | 'ON'; location?: string }> = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      status: 'OFF' as 'OFF' | 'SB' | 'D' | 'ON',
+      location: ''
+    }))
+
+    if (log.duty_entries) {
+      log.duty_entries.forEach(entry => {
+        const startHour = new Date(entry.start_time).getHours()
+        const endHour = entry.end_time ? new Date(entry.end_time).getHours() : 23
+
+        // Map duty status to valid grid status
+        let status: 'OFF' | 'SB' | 'D' | 'ON'
+        switch (entry.duty_status.toUpperCase()) {
+          case 'DRIVE':
+          case 'D':
+            status = 'D'
+            break
+          case 'ON':
+          case 'ON_DUTY':
+            status = 'ON'
+            break
+          case 'SB':
+          case 'SLEEPER_BERTH':
+            status = 'SB'
+            break
+          case 'OFF':
+          case 'OFF_DUTY':
+          default:
+            status = 'OFF'
+            break
+        }
+
+        for (let hour = startHour; hour <= endHour; hour++) {
+          if (hour < 24) {
+            grid[hour] = {
+              hour: hour,
+              status: status,
+              location: entry.location || ''
+            }
+          }
+        }
+      })
+    }
+
+    return grid
+  }
 
   // Format time for display
   const formatTime = (timeString: string) => {
@@ -408,9 +490,181 @@ const getELDLogs = (): ELDLog[] => {
       'OFF': 'Off Duty',
       'ON': 'On Duty',
       'DRIVE': 'Driving',
+      'D': 'Driving',
       'SB': 'Sleeper Berth'
     }
     return statusMap[status] || status
+  }
+
+  // Visual ELD Log Component
+  const VisualELDLogComponent: React.FC<{ log: ELDLog }> = ({ log }) => {
+    const gridData = generateVisualGrid(log)
+
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'OFF': return 'bg-gray-400'
+        case 'SB': return 'bg-green-500'
+        case 'D': return 'bg-red-500'
+        case 'ON': return 'bg-yellow-500'
+        default: return 'bg-gray-300'
+      }
+    }
+
+    const getStatusLabel = (status: string) => {
+      switch (status) {
+        case 'OFF': return 'Off Duty'
+        case 'SB': return 'Sleeper Berth'
+        case 'D': return 'Driving'
+        case 'ON': return 'On Duty'
+        default: return 'Unknown'
+      }
+    }
+
+    return (
+      <div className="border rounded-lg p-4 bg-white">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h4 className="font-semibold text-lg">ELD Daily Log - {log.log_date}</h4>
+            <p className="text-sm text-gray-600">
+              {log.driver?.name} ({log.driver?.license_number}) - {log.vehicle?.license_plate}
+            </p>
+          </div>
+          <div className={`px-3 py-1 rounded text-sm font-medium ${
+            log.is_compliant ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {log.is_compliant ? 'Compliant' : 'Non-Compliant'}
+          </div>
+        </div>
+
+        {/* Visual Log Grid */}
+        <div className="mb-4">
+          <div className="flex items-center mb-2">
+            <span className="text-sm font-medium text-gray-700 w-20">Hours:</span>
+            <div className="flex overflow-x-auto">
+              {Array.from({ length: 24 }, (_, i) => (
+                <div key={i} className="w-8 h-6 border border-gray-300 text-xs flex items-center justify-center bg-gray-50 flex-shrink-0">
+                  {i.toString().padStart(2, '0')}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center">
+            <span className="text-sm font-medium text-gray-700 w-20">Status:</span>
+            <div className="flex overflow-x-auto">
+              {gridData.map((entry, index) => (
+                <div
+                  key={index}
+                  className={`w-8 h-8 border border-white ${getStatusColor(entry.status)} flex-shrink-0`}
+                  title={`${entry.hour}:00 - ${getStatusLabel(entry.status)} - ${entry.location}`}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 mb-4 text-xs">
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-gray-400 mr-1"></div>
+            <span>Off Duty</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-green-500 mr-1"></div>
+            <span>Sleeper Berth</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-red-500 mr-1"></div>
+            <span>Driving</span>
+          </div>
+          <div className="flex items-center">
+            <div className="w-4 h-4 bg-yellow-500 mr-1"></div>
+            <span>On Duty</span>
+          </div>
+        </div>
+
+        {/* Totals */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 p-3 bg-gray-50 rounded">
+          <div className="text-center">
+            <div className="font-semibold text-lg">{log.totals?.drive_time?.toFixed(1) || '0.0'}h</div>
+            <div className="text-xs text-gray-600">Drive Time</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-lg">{log.totals?.on_duty_time?.toFixed(1) || '0.0'}h</div>
+            <div className="text-xs text-gray-600">On Duty</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-lg">{log.totals?.off_duty_time?.toFixed(1) || '0.0'}h</div>
+            <div className="text-xs text-gray-600">Off Duty</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-lg">{log.cycle_hours_used?.toFixed(1) || '0.0'}h</div>
+            <div className="text-xs text-gray-600">Cycle Hours</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-lg">{log.totals?.miles_driven?.toFixed(0) || '0'}</div>
+            <div className="text-xs text-gray-600">Miles</div>
+          </div>
+        </div>
+
+        {/* Duty Status Entries from API */}
+        {log.duty_entries && log.duty_entries.length > 0 && (
+          <div className="mt-4">
+            <h5 className="text-sm font-medium text-gray-700 mb-2">Duty Status Changes</h5>
+            <div className="space-y-1">
+              {log.duty_entries.map((entry: DutyEntry, entryIndex: number) => (
+                <div key={entryIndex} className="flex items-center justify-between py-2 px-3 bg-white rounded border-l-4 border-blue-500">
+                  <div className="flex items-center space-x-3">
+                    <div className={`px-2 py-1 rounded text-xs font-medium ${
+                      entry.duty_status === 'DRIVE' || entry.duty_status === 'D' ? 'bg-green-100 text-green-800' :
+                      entry.duty_status === 'ON' ? 'bg-blue-100 text-blue-800' :
+                      entry.duty_status === 'OFF' ? 'bg-gray-100 text-gray-800' :
+                      'bg-purple-100 text-purple-800'
+                    }`}>
+                      {formatDutyStatus(entry.duty_status)}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium">
+                        {formatTime(entry.start_time)}
+                        {entry.end_time && ` - ${formatTime(entry.end_time)}`}
+                      </div>
+                      <div className="text-xs text-gray-600">
+                        {entry.location} • {entry.duration_minutes} min
+                      </div>
+                    </div>
+                  </div>
+                  {entry.remarks && (
+                    <div className="text-xs text-gray-500 italic">
+                      {entry.remarks}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Violations */}
+        {log.violations && log.violations.trim() !== '' && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
+            <h6 className="text-sm font-medium text-red-800 mb-1">Violations</h6>
+            <p className="text-sm text-red-700">{log.violations}</p>
+          </div>
+        )}
+
+        {/* Action buttons for individual logs */}
+        <div className="flex justify-end space-x-2 mt-4 pt-3 border-t">
+          <Button variant="outline" size="sm">
+            <EyeIcon className="h-3 w-3 mr-1" />
+            View Details
+          </Button>
+          <Button variant="outline" size="sm">
+            <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
+            Export
+          </Button>
+        </div>
+      </div>
+    )
   }
 
   const stepTitles = [
@@ -754,7 +1008,7 @@ const getELDLogs = (): ELDLog[] => {
           </motion.div>
         )}
 
-        {/* Step 4: Trip Results */}
+        {/* Step 4: Enhanced Trip Results */}
         {currentStep === 4 && tripResult && (
           <motion.div
             initial={{ opacity: 0, x: 20 }}
@@ -762,23 +1016,29 @@ const getELDLogs = (): ELDLog[] => {
             transition={{ duration: 0.3 }}
           >
             <div className="space-y-6">
-              {/* Trip Summary */}
+              {/* Enhanced Trip Summary */}
               <Card title="Trip Summary" className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-2xl font-bold text-blue-600">
                       {getTotalDistance().toFixed(1)} mi
                     </div>
                     <div className="text-sm text-gray-600">Total Distance</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-2xl font-bold text-blue-600">
                       {getTotalDuration().toFixed(1)} hrs
                     </div>
                     <div className="text-sm text-gray-600">Estimated Duration</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-red-600">
+                    <div className="text-2xl font-bold text-blue-600">
+                      {getFuelStops().length}
+                    </div>
+                    <div className="text-sm text-gray-600">Fuel Stops</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-blue-600">
                       {getELDLogs().length}
                     </div>
                     <div className="text-sm text-gray-600">ELD Log Days</div>
@@ -816,15 +1076,70 @@ const getELDLogs = (): ELDLog[] => {
               </Card>
 
               {/* Interactive Map */}
-              <Card title="Route Map" className="h-96">
-                <div className="h-full bg-gray-100 rounded-lg flex items-center justify-center">
-                   <RouteMap tripResult={tripResult} />
+              <Card title="Route Map with Fuel Stops">
+                <div className="h-96 bg-gray-100 rounded-lg flex items-center justify-center relative">
+                  <RouteMap tripResult={tripResult} />
+                  {/* Fuel Stop Indicators Overlay - Only show if fuel stops exist */}
+                  {getFuelStops().length > 0 && (
+                    <div className="absolute top-4 left-4 bg-white rounded-lg p-3 shadow-lg max-w-xs">
+                      <h4 className="font-medium text-gray-900 mb-2 flex items-center">
+                        <BoltIcon className="h-4 w-4 mr-1 text-blue-600" />
+                        Fuel Stops Required
+                      </h4>
+                      <div className="space-y-1 text-sm max-h-32 overflow-y-auto">
+                        {getFuelStops().map((stop, index) => (
+                          <div key={stop.id} className="flex items-center text-gray-600">
+                            <MapPinIcon className="h-3 w-3 mr-1 flex-shrink-0" />
+                            <span className="truncate">Mile {stop.mileage} - ${stop.estimated_fuel_cost}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
 
-              {/* ELD Logs - Updated to handle actual API response structure */}
+              {/* Fuel Stops Details - Only show if fuel stops exist from API */}
+              {getFuelStops().length > 0 && (
+                <Card title="Required Fuel Stops">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {getFuelStops().map((stop) => (
+                      <div key={stop.id} className="border rounded-lg p-4 bg-gray-50">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium text-gray-900">{stop.station_name || `Fuel Stop ${stop.id}`}</h4>
+                          <span className="text-sm text-gray-500">Mile {stop.mileage}</span>
+                        </div>
+                        <div className="text-sm text-gray-600 mb-2">
+                          {stop.address || stop.location}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-sm mb-2">
+                          <div>
+                            <span className="text-gray-600">Fuel:</span>
+                            <span className="ml-1 font-medium">{stop.estimated_fuel_gallons} gal</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Cost:</span>
+                            <span className="ml-1 font-medium">${stop.estimated_fuel_cost}</span>
+                          </div>
+                        </div>
+                        {stop.amenities && stop.amenities.length > 0 && (
+                          <div className="flex flex-wrap gap-1">
+                            {stop.amenities.map((amenity, index) => (
+                              <span key={index} className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                                {amenity}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+
+              {/* Enhanced ELD Daily Log Sheets */}
               <Card
-                title="ELD Daily Log Sheets"
+                title="FMCSA Compliant Daily Log Sheets"
                 actions={
                   <div className="flex space-x-2">
                     <Button variant="outline" size="sm">
@@ -841,108 +1156,7 @@ const getELDLogs = (): ELDLog[] => {
                 <div className="space-y-4">
                   {getELDLogs().length > 0 ? (
                     getELDLogs().map((log: ELDLog, index: number) => (
-                      <div key={log.id || index} className="border rounded-lg p-4 bg-gray-50">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <h4 className="font-medium text-gray-900">
-                              {log.log_date}
-                            </h4>
-                            <p className="text-sm text-gray-600">
-                              {log.driver?.name} • {log.vehicle?.license_plate} ({log.vehicle?.make} {log.vehicle?.model})
-                            </p>
-                          </div>
-                          <div className={`px-2 py-1 rounded text-xs font-medium ${
-                            log.is_compliant 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {log.is_compliant ? 'Compliant' : 'Non-Compliant'}
-                          </div>
-                        </div>
-
-                        {/* Daily Totals */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-white rounded border">
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
-                              {log.totals?.drive_time?.toFixed(1) || '0.0'}h
-                            </div>
-                            <div className="text-xs text-gray-600">Drive Time</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
-                              {log.totals?.on_duty_time?.toFixed(1) || '0.0'}h
-                            </div>
-                            <div className="text-xs text-gray-600">On Duty</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
-                              {log.cycle_hours_used?.toFixed(1) || '0.0'}h
-                            </div>
-                            <div className="text-xs text-gray-600">Cycle Hours</div>
-                          </div>
-                          <div className="text-center">
-                            <div className="text-lg font-semibold text-gray-900">
-                              {log.totals?.miles_driven?.toFixed(0) || '0'} mi
-                            </div>
-                            <div className="text-xs text-gray-600">Miles</div>
-                          </div>
-                        </div>
-
-                        {/* Duty Status Entries */}
-                        <div className="space-y-2">
-                          <h5 className="text-sm font-medium text-gray-700">Duty Status Changes</h5>
-                          <div className="space-y-1">
-                            {log.duty_entries?.map((entry: DutyEntry, entryIndex: number) => (
-                              <div key={entryIndex} className="flex items-center justify-between py-2 px-3 bg-white rounded border-l-4 border-blue-500">
-                                <div className="flex items-center space-x-3">
-                                  <div className={`px-2 py-1 rounded text-xs font-medium ${
-                                    entry.duty_status === 'DRIVE' ? 'bg-green-100 text-green-800' :
-                                    entry.duty_status === 'ON' ? 'bg-blue-100 text-blue-800' :
-                                    entry.duty_status === 'OFF' ? 'bg-gray-100 text-gray-800' :
-                                    'bg-purple-100 text-purple-800'
-                                  }`}>
-                                    {formatDutyStatus(entry.duty_status)}
-                                  </div>
-                                  <div>
-                                    <div className="text-sm font-medium">
-                                      {formatTime(entry.start_time)}
-                                      {entry.end_time && ` - ${formatTime(entry.end_time)}`}
-                                    </div>
-                                    <div className="text-xs text-gray-600">
-                                      {entry.location} • {entry.duration_minutes} min
-                                    </div>
-                                  </div>
-                                </div>
-                                {entry.remarks && (
-                                  <div className="text-xs text-gray-500 italic">
-                                    {entry.remarks}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Violations */}
-                        {log.violations && log.violations.trim() !== '' && (
-                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded">
-                            <h6 className="text-sm font-medium text-red-800 mb-1">Violations</h6>
-                            <p className="text-sm text-red-700">{log.violations}</p>
-                          </div>
-                        )}
-
-                        {/* Action buttons for individual logs */}
-                        <div className="flex justify-end space-x-2 mt-4 pt-3 border-t">
-                          <Button variant="outline" size="sm">
-                            <EyeIcon className="h-3 w-3 mr-1" />
-                            View Details
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <ArrowDownTrayIcon className="h-3 w-3 mr-1" />
-                            Export
-                          </Button>
-                        </div>
-                      </div>
+                      <VisualELDLogComponent key={log.id || index} log={log} />
                     ))
                   ) : (
                     <div className="text-center py-8">
@@ -980,7 +1194,7 @@ const getELDLogs = (): ELDLog[] => {
                 <div className="space-x-2">
                   <Button variant="outline">
                     <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
-                    Export Trip
+                    Export Trip Package
                   </Button>
                   <Button variant="primary">
                     <MapIcon className="h-4 w-4 mr-1" />

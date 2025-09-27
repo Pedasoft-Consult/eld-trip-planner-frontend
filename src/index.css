@@ -605,3 +605,6 @@ select:focus {
 .status-dot.warning {
   background-color: var(--color-warning);
 }
+.mapboxgl-map {
+  font: 12px/20px 'Helvetica Neue', Arial, Helvetica, sans-serif;
+}
