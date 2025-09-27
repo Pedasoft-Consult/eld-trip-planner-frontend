@@ -1,3 +1,4 @@
+// src/api/services.ts - FIXED VERSION
 import api from './client'
 import type {
   Trip,
@@ -17,7 +18,7 @@ import type {
   ApiResponse,
 } from '@/types'
 
-// Trip Services - Fixed URL patterns
+// Trip Services - CORRECTED URLs to match Django backend
 export const tripService = {
   // Get all trips
   getTrips: async (): Promise<ApiResponse<TripSummary[]>> => {
@@ -75,7 +76,7 @@ export const tripService = {
   },
 }
 
-// ELD Services - Fixed URL patterns
+// ELD Services - CORRECTED URLs
 export const eldService = {
   // Get all ELD logs
   getLogs: async (params?: { driver_id?: number; start_date?: string; end_date?: string }): Promise<ApiResponse<ELDLog[]>> => {
@@ -132,7 +133,7 @@ export const eldService = {
   },
 }
 
-// Driver Services - FIXED: Corrected URL patterns to match Django URLs
+// Driver Services - FIXED: Using health API endpoints from Postman collection
 export const driverService = {
   // Get all drivers
   getDrivers: async (params?: { is_active?: boolean; duty_status?: string; can_drive?: boolean }): Promise<ApiResponse<Driver[]>> => {
@@ -182,7 +183,7 @@ export const driverService = {
   },
 }
 
-// Vehicle Services - FIXED: Corrected URL patterns to match Django URLs
+// Vehicle Services - FIXED: Using health API endpoints
 export const vehicleService = {
   // Get all vehicles
   getVehicles: async (params?: { is_active?: boolean; vehicle_type?: string }): Promise<ApiResponse<Vehicle[]>> => {
@@ -218,39 +219,39 @@ export const vehicleService = {
   },
 }
 
-// Company Services - Fixed URL patterns
+// Company Services - FIXED: Using health API endpoints
 export const companyService = {
   // Get all companies
   getCompanies: async (params?: { is_active?: boolean }): Promise<ApiResponse<any[]>> => {
-    return api.get('/api/companies/', params)
+    return api.get('/health/api/companies/', params)
   },
 
   // Get company by ID
   getCompany: async (companyId: number): Promise<ApiResponse<any>> => {
-    return api.get(`/api/companies/${companyId}/`)
+    return api.get(`/health/api/companies/${companyId}/`)
   },
 
   // Create company
   createCompany: async (companyData: any): Promise<ApiResponse<any>> => {
-    return api.post('/api/companies/', companyData)
+    return api.post('/health/api/companies/', companyData)
   },
 
   // Update company
   updateCompany: async (companyId: number, companyData: any): Promise<ApiResponse<any>> => {
-    return api.patch(`/api/companies/${companyId}/`, companyData)
+    return api.patch(`/health/api/companies/${companyId}/`, companyData)
   },
 
   // Get compliance info
   getComplianceInfo: async (companyId: number): Promise<ApiResponse<any>> => {
-    return api.get(`/api/companies/${companyId}/compliance_info/`)
+    return api.get(`/health/api/companies/${companyId}/compliance_info/`)
   },
 }
 
-// Mapping Services - Fixed URL patterns
+// Mapping Services - FIXED: Using health geocode endpoint
 export const mappingService = {
   // Geocode address
   geocodeAddress: async (address: string): Promise<ApiResponse<GeocodeResult>> => {
-    return api.post('/api/geocode/', { address })
+    return api.post('/health/geocode/', { address })
   },
 
   // Calculate route
@@ -328,39 +329,39 @@ export const routeTemplateService = {
   },
 }
 
-// Dashboard Services - Fixed URL patterns
+// Dashboard Services - FIXED: Using health API endpoints
 export const dashboardService = {
   // Get fleet dashboard data
   getFleetDashboard: async (): Promise<ApiResponse<DashboardStats>> => {
-    return api.get('/api/fleet-dashboard/')
+    return api.get('/health/api/fleet-dashboard/')
   },
 
   // Get compliance report
   getComplianceReport: async (days?: number): Promise<ApiResponse<ComplianceReport>> => {
-    return api.get('/api/compliance-report/', { days: days || 7 })
+    return api.get('/health/api/compliance-report/', { days: days || 7 })
   },
 
   // Get system info
   getSystemInfo: async (): Promise<ApiResponse<any>> => {
-    return api.get('/api/system-info/')
+    return api.get('/health/api/system-info/')
   },
 
   // Bulk driver operations
   bulkDriverOperations: async (operation: string, driverIds: number[]): Promise<ApiResponse<any>> => {
-    return api.post('/api/bulk-driver-operations/', { operation, driver_ids: driverIds })
+    return api.post('/health/api/bulk-driver-operations/', { operation, driver_ids: driverIds })
   },
 }
 
-// Utility Services - Fixed URL patterns
+// Utility Services - FIXED: Using health API endpoints
 export const utilityService = {
   // Get duty status options
   getDutyStatusOptions: async (): Promise<ApiResponse<any>> => {
-    return api.get('/api/duty-status-options/')
+    return api.get('/health/api/duty-status-options/')
   },
 
   // Get HOS rules info
   getHOSRulesInfo: async (): Promise<ApiResponse<any>> => {
-    return api.get('/api/hos-rules/')
+    return api.get('/health/api/hos-rules/')
   },
 
   // Health check - Use the actual health endpoint
@@ -384,7 +385,7 @@ export const uploadService = {
 
   // Upload driver signature
   uploadDriverSignature: async (driverId: number, signatureData: string): Promise<ApiResponse<any>> => {
-    return api.post(`/api/drivers/${driverId}/signature/`, { signature_data: signatureData })
+    return api.post(`/health/api/drivers/${driverId}/signature/`, { signature_data: signatureData })
   },
 }
 

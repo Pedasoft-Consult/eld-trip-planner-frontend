@@ -1,4 +1,4 @@
-// src/api/client.ts
+// src/api/client.ts - CORRECTED VERSION
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios'
 
 // Types for API responses
@@ -9,7 +9,7 @@ export interface ApiResponse<T = any> {
   status?: number
 }
 
-// Base API configuration - Updated to match Django backend
+// Base API configuration
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
 class ApiClient {
@@ -23,7 +23,7 @@ class ApiClient {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      withCredentials: true, // For cookie-based auth with Django
+      withCredentials: false, // Avoid CORS issues initially
     })
 
     this.setupInterceptors()
@@ -33,24 +33,18 @@ class ApiClient {
     // Request interceptor
     this.client.interceptors.request.use(
       (config) => {
-        // Add auth token if available (JWT from localStorage or cookies)
-        const token = localStorage.getItem('access_token') || this.getCookie('access_token')
+        // Add auth token if available
+        const token = localStorage.getItem('access_token')
         if (token) {
+          config.headers = config.headers || {}
           config.headers.Authorization = `Bearer ${token}`
-        }
-
-        // Add CSRF token for Django (if needed for certain operations)
-        const csrfToken = this.getCookie('csrftoken')
-        if (csrfToken && ['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase() || '')) {
-          config.headers['X-CSRFToken'] = csrfToken
         }
 
         // Log requests in development
         if (import.meta.env.DEV) {
-          console.log(`🔵 API Request: ${config.method?.toUpperCase()} ${config.url}`, {
+          console.log(`🔵 API Request: ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`, {
             data: config.data,
             params: config.params,
-            headers: config.headers
           })
         }
 
@@ -70,19 +64,18 @@ class ApiClient {
           console.log(`🟢 API Response: ${response.status}`, {
             url: response.config.url,
             data: response.data,
-            headers: response.headers
           })
         }
 
         return response
       },
       (error) => {
-        // Enhanced error handling for Django REST Framework responses
+        // Enhanced error handling
         if (error.response) {
           const status = error.response.status
           const data = error.response.data
 
-          // Handle different types of Django/DRF errors
+          // Handle different types of errors
           switch (status) {
             case 400:
               console.error('❌ Bad Request:', data)
@@ -90,10 +83,6 @@ class ApiClient {
             case 401:
               console.error('❌ Unauthorized - clearing auth tokens')
               this.clearAuthTokens()
-              // Only redirect to login in production to avoid disrupting development
-              if (import.meta.env.PROD) {
-                window.location.href = '/login'
-              }
               break
             case 403:
               console.error('❌ Forbidden:', data)
@@ -117,12 +106,15 @@ class ApiClient {
               status,
               statusText: error.response.statusText,
               data,
-              config: error.config,
-              headers: error.response.headers
+              url: error.config?.url,
+              method: error.config?.method,
             })
           }
         } else if (error.request) {
-          console.error('❌ Network Error - No response received:', error.request)
+          console.error('❌ Network Error - No response received:', {
+            url: error.config?.url,
+            method: error.config?.method,
+          })
         } else {
           console.error('❌ Request Setup Error:', error.message)
         }
@@ -130,18 +122,6 @@ class ApiClient {
         return Promise.reject(error)
       }
     )
-  }
-
-  // Helper method to get cookies (for CSRF and auth tokens)
-  private getCookie(name: string): string | null {
-    if (typeof document === 'undefined') return null
-
-    const value = `; ${document.cookie}`
-    const parts = value.split(`; ${name}=`)
-    if (parts.length === 2) {
-      return parts.pop()?.split(';').shift() || null
-    }
-    return null
   }
 
   // Generic request method with enhanced error handling
@@ -155,7 +135,7 @@ class ApiClient {
         status: response.status,
       }
     } catch (error: any) {
-      // Enhanced error message extraction for Django/DRF
+      // Enhanced error message extraction
       let errorMessage = 'An unexpected error occurred'
       let errorDetails = null
 
@@ -197,6 +177,16 @@ class ApiClient {
         }
       } else if (error.message) {
         errorMessage = error.message
+      }
+
+      // Special handling for network errors
+      if (error.code === 'ECONNREFUSED' || error.code === 'ERR_NETWORK') {
+        errorMessage = 'Cannot connect to server. Please check if the backend is running on http://localhost:8000'
+      }
+
+      // Special handling for 404 errors
+      if (error.response?.status === 404) {
+        errorMessage = `Endpoint not found: ${error.config?.method?.toUpperCase()} ${error.config?.url}`
       }
 
       return {
@@ -256,7 +246,6 @@ class ApiClient {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
-      // Increase timeout for file uploads
       timeout: 60000,
     })
   }
@@ -273,7 +262,7 @@ class ApiClient {
   }
 
   async refreshToken(): Promise<ApiResponse<any>> {
-    const refreshToken = localStorage.getItem('refresh_token') || this.getCookie('refresh_token')
+    const refreshToken = localStorage.getItem('refresh_token')
 
     if (!refreshToken) {
       throw new Error('No refresh token available')
@@ -289,13 +278,6 @@ class ApiClient {
   }
 
   async logout(): Promise<void> {
-    // If you have a logout endpoint that blacklists tokens
-    try {
-      await this.post('/api/auth/logout/')
-    } catch (error) {
-      console.warn('Logout endpoint not available or failed:', error)
-    }
-
     this.clearAuthTokens()
   }
 
@@ -306,36 +288,34 @@ class ApiClient {
       localStorage.setItem('refresh_token', refreshToken)
     }
 
-    // Also set as default header
+    // Set as default header
+    this.client.defaults.headers.common = this.client.defaults.headers.common || {}
     this.client.defaults.headers.common.Authorization = `Bearer ${accessToken}`
   }
 
   setAuthToken(token: string): void {
     localStorage.setItem('access_token', token)
+    this.client.defaults.headers.common = this.client.defaults.headers.common || {}
     this.client.defaults.headers.common.Authorization = `Bearer ${token}`
   }
 
   clearAuthTokens(): void {
     localStorage.removeItem('access_token')
     localStorage.removeItem('refresh_token')
-    delete this.client.defaults.headers.common.Authorization
-
-    // Clear cookies if they exist
-    if (typeof document !== 'undefined') {
-      document.cookie = 'access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
-      document.cookie = 'refresh_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;'
+    if (this.client.defaults.headers.common) {
+      delete this.client.defaults.headers.common.Authorization
     }
   }
 
   // Check if user is authenticated
   isAuthenticated(): boolean {
-    const token = localStorage.getItem('access_token') || this.getCookie('access_token')
+    const token = localStorage.getItem('access_token')
     return !!token
   }
 
   // Get current auth token
   getAuthToken(): string | null {
-    return localStorage.getItem('access_token') || this.getCookie('access_token')
+    return localStorage.getItem('access_token')
   }
 
   // Update base URL if needed
@@ -355,14 +335,14 @@ class ApiClient {
 
   // Method to handle API versioning
   async getApiInfo(): Promise<ApiResponse<any>> {
-    return this.get('/api/system-info/')
+    return this.get('/health/api/system-info/')
   }
 }
 
 // Create and export a singleton instance
 const apiClient = new ApiClient()
 
-// Auto-refresh token on 401 errors
+// Add automatic token refresh on 401 errors
 let isRefreshing = false
 let failedQueue: Array<{
   resolve: (value?: any) => void
@@ -392,6 +372,7 @@ apiClient['client'].interceptors.response.use(
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject })
         }).then((token) => {
+          originalRequest.headers = originalRequest.headers || {}
           originalRequest.headers.Authorization = `Bearer ${token}`
           return apiClient['client'](originalRequest)
         }).catch((err) => {
@@ -408,6 +389,7 @@ apiClient['client'].interceptors.response.use(
 
         if (newToken) {
           processQueue(null, newToken)
+          originalRequest.headers = originalRequest.headers || {}
           originalRequest.headers.Authorization = `Bearer ${newToken}`
           return apiClient['client'](originalRequest)
         } else {
