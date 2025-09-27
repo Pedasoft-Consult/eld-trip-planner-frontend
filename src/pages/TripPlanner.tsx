@@ -134,8 +134,8 @@ const TripPlanner: React.FC = () => {
     return Object.keys(newErrors).length === 0
   }
 
-  // Handle input changes
-  const handleInputChange = (field: keyof TripFormData, value: string | number) => {
+  // Handle input changes - Fixed to handle both string and number types
+  const handleInputChange = (field: keyof TripFormData, value: string | number | undefined) => {
     setFormData(prev => ({ ...prev, [field]: value }))
     // Clear error when user starts typing
     if (errors[field]) {
@@ -202,12 +202,14 @@ const TripPlanner: React.FC = () => {
       })
 
       if (response.data) {
-        // Mock the additional properties needed for TripResult
+        // Fixed: Ensure all required properties are present with default values
         const mockTripResult: TripResult = {
-          ...response.data,
-          route: null,
-          stops: [],
-          eld_logs: [],
+          id: response.data.id,
+          total_distance_miles: response.data.total_distance_miles || 0,
+          estimated_duration_hours: response.data.estimated_duration_hours || 0,
+          route: response.data.route || null,
+          stops: response.data.stops || [],
+          eld_logs: response.data.eld_logs || [],
           compliance_status: {
             is_compliant: true,
             violations: []
@@ -582,19 +584,19 @@ const TripPlanner: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.total_distance_miles?.toFixed(1) || '0.0'} mi
+                      {tripResult.total_distance_miles.toFixed(1)} mi
                     </div>
                     <div className="text-sm text-gray-600">Total Distance</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.estimated_duration_hours?.toFixed(1) || '0.0'} hrs
+                      {tripResult.estimated_duration_hours.toFixed(1)} hrs
                     </div>
                     <div className="text-sm text-gray-600">Estimated Duration</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold text-red-600">
-                      {tripResult.stops?.length || 0}
+                      {tripResult.stops.length}
                     </div>
                     <div className="text-sm text-gray-600">Planned Stops</div>
                   </div>
